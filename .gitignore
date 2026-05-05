@@ -1,0 +1,4 @@
+.vercel
+scripts/*.csv
+scripts/*.json
+scripts/*_progress.json
