@@ -164,7 +164,28 @@ def main():
     print(f"  ArcGIS Hub: {len(arcgis):,}", flush=True)
 
     all_rows = socrata + datagov + ods + nasa + noaa + arcgis
-    print(f"\nTotal: {len(all_rows):,}", flush=True)
+    print(f"\nTotal before dedup: {len(all_rows):,}", flush=True)
+
+    # Cross-source dedup: match on normalized title + org
+    import re
+    def dedup_key(r):
+        name = re.sub(r'[^a-z0-9]', '', (r["n"] or "").lower())
+        org = re.sub(r'[^a-z0-9]', '', (r["o"] or "").lower())
+        return name + "|" + org
+
+    seen = set()
+    deduped = []
+    for r in all_rows:
+        k = dedup_key(r)
+        if k in seen:
+            continue
+        seen.add(k)
+        deduped.append(r)
+
+    removed = len(all_rows) - len(deduped)
+    all_rows = deduped
+    print(f"Cross-source dedup: removed {removed:,} duplicates", flush=True)
+    print(f"Total after dedup: {len(all_rows):,}", flush=True)
 
     # Build summary stats
     from collections import Counter
