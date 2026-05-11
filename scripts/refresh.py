@@ -6,6 +6,7 @@ Usage: python scripts/refresh.py
 """
 
 import gzip, base64, json, os, sys, subprocess, time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -22,20 +23,25 @@ SCRAPERS = [
 
 def run_script(name, filename):
     path = os.path.join(SCRIPT_DIR, filename)
-    print(f"\n{'='*60}", flush=True)
-    print(f"Running {name} scraper: {filename}", flush=True)
-    print(f"{'='*60}", flush=True)
     t0 = time.time()
-    result = subprocess.run(
-        [sys.executable, path],
-        cwd=SCRIPT_DIR,
-        timeout=3600,  # 1 hour max per scraper
-    )
-    elapsed = time.time() - t0
-    if result.returncode != 0:
-        print(f"WARNING: {name} scraper exited with code {result.returncode} ({elapsed:.0f}s)", flush=True)
-    else:
-        print(f"{name} scraper done ({elapsed:.0f}s)", flush=True)
+    print(f"[START] {name} scraper: {filename}", flush=True)
+    try:
+        result = subprocess.run(
+            [sys.executable, path],
+            cwd=SCRIPT_DIR,
+            timeout=7200,  # 2 hours max per scraper
+        )
+        elapsed = time.time() - t0
+        if result.returncode != 0:
+            print(f"[WARN]  {name} exited with code {result.returncode} ({elapsed:.0f}s)", flush=True)
+        else:
+            print(f"[DONE]  {name} done ({elapsed:.0f}s)", flush=True)
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - t0
+        print(f"[TIMEOUT] {name} timed out after {elapsed:.0f}s", flush=True)
+    except Exception as e:
+        elapsed = time.time() - t0
+        print(f"[ERROR] {name} failed after {elapsed:.0f}s: {e}", flush=True)
 
 
 def build_json():
@@ -94,12 +100,15 @@ def main():
     print("Open Data Catalog — Monthly Refresh", flush=True)
     print(f"Time: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}", flush=True)
 
-    # Run all scrapers (continue even if one fails)
-    for name, filename in SCRAPERS:
-        try:
-            run_script(name, filename)
-        except Exception as e:
-            print(f"ERROR: {name} scraper failed: {e}", flush=True)
+    # Run all scrapers in parallel
+    print(f"\nStarting {len(SCRAPERS)} scrapers in parallel...\n", flush=True)
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=len(SCRAPERS)) as pool:
+        futures = {pool.submit(run_script, name, fn): name for name, fn in SCRAPERS}
+        for f in as_completed(futures):
+            f.result()  # propagate exceptions if any
+
+    print(f"\nAll scrapers finished in {(time.time()-t0)/60:.1f}m", flush=True)
 
     # Build unified JSON
     build_json()

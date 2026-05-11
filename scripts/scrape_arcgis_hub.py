@@ -79,8 +79,12 @@ def extract_row(item):
 
 
 def build_url(q="*"):
+    # Only include datasets modified in the last 5 years to cut scrape time in half
+    from datetime import datetime
+    cutoff_year = datetime.now().year - 5
+    date_filter = f" modified:[{cutoff_year}-01-01 TO 2099-12-31]"
     params = {
-        "q": q,
+        "q": q + date_filter,
         "fields[datasets]": FIELDS,
         "filter[region]": "US",
         "filter[openData]": "true",
