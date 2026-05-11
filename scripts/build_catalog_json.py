@@ -166,25 +166,56 @@ def main():
     all_rows = socrata + datagov + ods + nasa + noaa + arcgis
     print(f"\nTotal before dedup: {len(all_rows):,}", flush=True)
 
-    # Cross-source dedup: match on normalized title + org
+    # Cross-source dedup with fuzzy matching and link preference
     import re
+
+    def normalize(s):
+        """Aggressive normalization for fuzzy matching."""
+        s = (s or "").lower()
+        # Strip version numbers, years in parens, trailing dates
+        s = re.sub(r'\s*\(?(v\d+[\.\d]*|version\s*\d+|fy\s*\d{4})\)?', '', s)
+        s = re.sub(r',?\s*\d{4}[-–]\d{2,4}$', '', s)  # trailing date ranges
+        s = re.sub(r',?\s*\d{4}$', '', s)  # trailing year
+        # Strip all non-alphanumeric
+        s = re.sub(r'[^a-z0-9]', '', s)
+        return s
+
     def dedup_key(r):
-        name = re.sub(r'[^a-z0-9]', '', (r["n"] or "").lower())
-        org = re.sub(r'[^a-z0-9]', '', (r["o"] or "").lower())
-        return name + "|" + org
+        return normalize(r["n"]) + "|" + normalize(r["o"])
 
-    seen = set()
-    deduped = []
+    # Pass 1: group by key, keep the best version (prefer ones with URLs)
+    from collections import defaultdict
+    groups = defaultdict(list)
     for r in all_rows:
-        k = dedup_key(r)
-        if k in seen:
-            continue
-        seen.add(k)
-        deduped.append(r)
+        groups[dedup_key(r)].append(r)
 
-    removed = len(all_rows) - len(deduped)
+    deduped = []
+    for key, candidates in groups.items():
+        # Pick the one with a URL, or the one with the most metadata
+        best = None
+        for c in candidates:
+            if best is None:
+                best = c
+            elif c.get("u") and not best.get("u"):
+                best = c  # prefer linked
+            elif c.get("u") and best.get("u") and (c.get("p", 0) or 0) > (best.get("p", 0) or 0):
+                best = c  # both linked, prefer more popular
+            elif not c.get("u") and not best.get("u") and len(c.get("k", "")) > len(best.get("k", "")):
+                best = c  # neither linked, prefer more keywords
+        deduped.append(best)
+
+    exact_removed = len(all_rows) - len(deduped)
+    print(f"Fuzzy dedup: removed {exact_removed:,} duplicates", flush=True)
+
+    # Pass 2: drop linkless entries when we already have plenty
+    # Keep linkless only if no linked version of similar name exists
+    linked_names = set(normalize(r["n"]) for r in deduped if r.get("u"))
+    before_link_filter = len(deduped)
+    deduped = [r for r in deduped if r.get("u") or normalize(r["n"]) not in linked_names]
+    link_removed = before_link_filter - len(deduped)
+    print(f"Linkless dedup: removed {link_removed:,} entries with linked equivalents", flush=True)
+
     all_rows = deduped
-    print(f"Cross-source dedup: removed {removed:,} duplicates", flush=True)
     print(f"Total after dedup: {len(all_rows):,}", flush=True)
 
     # Build summary stats
