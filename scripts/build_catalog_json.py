@@ -51,7 +51,7 @@ def load_datagov():
                 "k": (r.get("keywords") or "")[:200],
                 "p": int(float(r["popularity"])) if r.get("popularity") and r["popularity"].replace(".","",1).isdigit() else 0,
                 "dl": 0,
-                "u": "",  # data.gov doesn't give direct URLs in search results
+                "u": r.get("id", "") if (r.get("id", "").startswith("http")) else "",
                 "dt": (r.get("last_harvested") or "")[:10],
             })
     return rows
@@ -74,7 +74,7 @@ def load_ods():
                 "k": (r.get("keywords") or "")[:200],
                 "p": int(r["records_count"]) if r.get("records_count") and r["records_count"].isdigit() else 0,
                 "dl": 0,
-                "u": "",
+                "u": f"https://{r['id'].split('@',1)[1]}.opendatasoft.com/explore/dataset/{r['id'].split('@',1)[0]}/" if "@" in r.get("id","") else "",
                 "dt": (r.get("modified") or r.get("created") or "")[:10],
             })
     return rows
