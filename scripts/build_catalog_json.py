@@ -79,6 +79,52 @@ def load_ods():
             })
     return rows
 
+def load_noaa():
+    path = os.path.join(SCRIPT_DIR, "noaa_catalog.csv")
+    if not os.path.exists(path):
+        return []
+    rows = []
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            rows.append({
+                "n": (r["name"] or "")[:120],
+                "d": (r["description"] or "")[:150],
+                "s": "NOAA",
+                "o": (r.get("organization") or "NOAA")[:80],
+                "ot": "Federal",
+                "c": "",
+                "t": "dataset",
+                "k": (r.get("keywords") or "")[:200],
+                "p": 0,
+                "dl": 0,
+                "u": r.get("url") or "",
+                "dt": (r.get("modified") or "")[:10],
+            })
+    return rows
+
+def load_nasa():
+    path = os.path.join(SCRIPT_DIR, "nasa_catalog.csv")
+    if not os.path.exists(path):
+        return []
+    rows = []
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            rows.append({
+                "n": (r["name"] or "")[:120],
+                "d": (r["description"] or "")[:150],
+                "s": "NASA",
+                "o": (r.get("organization") or "NASA")[:80],
+                "ot": "Federal",
+                "c": "",
+                "t": "dataset",
+                "k": (r.get("tags") or "")[:200],
+                "p": int(r["page_views"]) if r.get("page_views") and r["page_views"].isdigit() else 0,
+                "dl": 0,
+                "u": r.get("url") or "",
+                "dt": (r.get("modified") or "")[:10],
+            })
+    return rows
+
 def load_arcgis():
     path = os.path.join(SCRIPT_DIR, "arcgis_hub_catalog.csv")
     if not os.path.exists(path):
@@ -110,10 +156,14 @@ def main():
     print(f"  data.gov: {len(datagov):,}", flush=True)
     ods = load_ods()
     print(f"  OpenDataSoft: {len(ods):,}", flush=True)
+    nasa = load_nasa()
+    print(f"  NASA: {len(nasa):,}", flush=True)
+    noaa = load_noaa()
+    print(f"  NOAA: {len(noaa):,}", flush=True)
     arcgis = load_arcgis()
     print(f"  ArcGIS Hub: {len(arcgis):,}", flush=True)
 
-    all_rows = socrata + datagov + ods + arcgis
+    all_rows = socrata + datagov + ods + nasa + noaa + arcgis
     print(f"\nTotal: {len(all_rows):,}", flush=True)
 
     # Build summary stats

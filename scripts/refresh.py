@@ -15,6 +15,8 @@ SCRAPERS = [
     ("Socrata", "scrape_socrata.py"),
     ("data.gov", "scrape_datagov.py"),
     ("OpenDataSoft", "scrape_opendatasoft.py"),
+    ("NASA", "scrape_nasa.py"),
+    ("NOAA", "scrape_noaa.py"),
     ("ArcGIS Hub", "scrape_arcgis_hub.py"),
 ]
 
